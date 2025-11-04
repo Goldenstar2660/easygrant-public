@@ -1,0 +1,81 @@
+# EasyGrant Smart Proposal Assistant Configuration
+# Constitution Principle VIII: All operational parameters in config
+
+llm:
+  # Requirements extraction and quality checking (high accuracy needed)
+  requirements_model: "gpt-4o"
+  requirements_temperature: 0.1
+  
+  # Section drafting (cost-effective, good quality)
+  drafting_model: "gpt-4o-mini"
+  drafting_temperature: 0.7
+  
+  # Quality checking
+  quality_model: "gpt-4o"
+  quality_temperature: 0.0
+
+embeddings:
+  model: "text-embedding-3-small"
+  dimensions: 1536
+  
+  # Chunking parameters (600 tokens with 15% overlap = 90 tokens)
+  chunk_size: 600
+  chunk_overlap: 90
+  
+  # Separator for RecursiveCharacterTextSplitter
+  separators: ["\n\n", "\n", " ", ""]
+
+retrieval:
+  # Top-k chunks to retrieve for each section
+  top_k: 5
+  
+  # Minimum relevance score (0.0-1.0)
+  min_relevance_score: 0.3
+
+vector_store:
+  # Chroma persistence directory (relative to project root)
+  persist_directory: "./vector"
+  
+  # Collection naming: session_{session_id}
+  collection_prefix: "session_"
+
+upload:
+  # File size limits (bytes)
+  max_funding_call_size: 10485760  # 10MB
+  max_supporting_doc_size: 10485760  # 10MB per file
+  max_total_supporting_size: 52428800  # 50MB total
+  
+  # Max number of supporting documents
+  max_supporting_docs: 5
+  
+  # Allowed file types
+  allowed_extensions: ["pdf", "docx", "txt"]
+  
+  # Upload directory (relative to project root)
+  upload_directory: "./data/uploads"
+
+privacy:
+  # Auto-delete sessions after N days of inactivity
+  auto_delete_after_days: 30
+  
+  # Session ID format: UUID4
+  session_id_format: "uuid4"
+
+ui:
+  # Panel layout
+  panels: ["upload_checklist", "editor", "sources"]
+  
+  # Word count warning threshold (% of limit)
+  word_count_warning_threshold: 0.9  # Yellow at 90%
+  word_count_error_threshold: 1.1    # Red at 110%
+
+hosting:
+  # Server configuration
+  host: "0.0.0.0"
+  port: 8000
+  
+  # CORS origins (for development)
+  cors_origins: ["http://localhost:5173", "http://localhost:3000"]
+  
+  # Production: Add your Render URL after deployment
+  # cors_origins: ["https://easygrant.onrender.com"]

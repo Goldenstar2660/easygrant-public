@@ -1,0 +1,159 @@
+/* Global Styles */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, sans-serif;
+  background: #f5f7fa;
+  color: #2c3e50;
+  line-height: 1.6;
+}
+
+/* App Layout */
+
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 2rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  max-width: 1800px;
+  margin: 0 auto;
+  gap: 2rem;
+}
+
+.header-title {
+  text-align: left;
+  flex: 1;
+}
+
+.header-actions {
+  flex-shrink: 0;
+}
+
+.app-header h1 {
+  font-size: 2.5rem;
+  margin-bottom: 0.5rem;
+  font-weight: 700;
+}
+
+.app-subtitle {
+  font-size: 1.1rem;
+  opacity: 0.95;
+  font-weight: 300;
+}
+
+.app-main {
+  flex: 1;
+  padding: 2rem;
+  max-width: 1800px;
+  margin: 0 auto;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.app-footer {
+  background: #2c3e50;
+  color: white;
+  text-align: center;
+  padding: 1.5rem;
+  font-size: 0.9rem;
+  opacity: 0.9;
+  margin-top: auto;
+}
+
+/* Next Steps */
+
+.next-steps,
+.checklist-section {
+  margin-top: 2rem;
+  padding: 2rem;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.next-steps {
+  text-align: center;
+}
+
+.next-steps h3 {
+  color: #28a745;
+  margin-bottom: 1rem;
+  font-size: 1.5rem;
+}
+
+.next-steps p {
+  color: #6c757d;
+  font-size: 1.1rem;
+}
+
+/* Workspace - 2-Panel Layout with Sources Below */
+
+.workspace {
+  display: grid;
+  grid-template-columns: 450px 1fr;
+  grid-template-rows: auto auto;
+  gap: 1.5rem;
+  min-height: 1200px;
+}
+
+.workspace-panel {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+}
+
+.checklist-column {
+  grid-column: 1;
+  grid-row: 1;
+  height: 1200px;
+}
+
+.editor-column {
+  grid-column: 2;
+  grid-row: 1;
+  height: 1200px;
+}
+
+.sources-column {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  max-height: 400px;
+}
+
+/* Responsive */
+
+@media (max-width: 768px) {
+  .app-header h1 {
+    font-size: 1.75rem;
+  }
+
+  .app-subtitle {
+    font-size: 1rem;
+  }
+
+  .app-main {
+    padding: 1rem;
+  }
+}

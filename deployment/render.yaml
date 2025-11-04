@@ -1,0 +1,43 @@
+# Render Blueprint for EasyGrant Smart Proposal Assistant
+# Constitution Principle IX: Hostability - Free tier compatible (<512MB RAM, <1GB storage)
+
+services:
+  # Main web service
+  - type: web
+    name: easygrant
+    runtime: docker
+    plan: free  # Free tier
+    region: oregon  # Choose your preferred region
+    
+    # Environment variables
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false  # Set manually in Render dashboard
+      
+      - key: PYTHON_VERSION
+        value: "3.11"
+      
+      - key: PORT
+        value: "8000"
+    
+    # Health check
+    healthCheckPath: /health
+    
+    # Disk mounts for persistent storage
+    disk:
+      name: easygrant-data
+      mountPath: /app/data
+      sizeGB: 1  # 1GB for uploads and vector store
+    
+    # Auto-deploy from main branch
+    autoDeploy: true
+    
+    # Build configuration
+    dockerfilePath: ./deployment/Dockerfile
+    dockerContext: .
+    
+    # Scaling (free tier: 1 instance)
+    numInstances: 1
+
+# Note: After deployment, update backend/config.yaml cors_origins with your Render URL:
+# cors_origins: ["https://easygrant.onrender.com"]

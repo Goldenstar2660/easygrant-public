@@ -1,0 +1,620 @@
+openapi: 3.0.3
+info:
+  title: EasyGrant Smart Proposal Assistant API
+  description: |
+    REST API for the Smart Proposal Assistant demo. Supports funding call upload,
+    requirements extraction, RAG-based section generation with citations, sticky edits,
+    and DOCX export.
+  version: 1.0.0
+  contact:
+    name: EasyGrant Team
+    
+servers:
+  - url: http://localhost:8000
+    description: Local development
+  - url: https://easygrant.onrender.com
+    description: Production (Render)
+
+tags:
+  - name: Upload
+    description: File upload endpoints
+  - name: Requirements
+    description: Funding call requirements extraction
+  - name: Sections
+    description: Section generation and editing
+  - name: Export
+    description: DOCX proposal export
+  - name: Data
+    description: Session data management
+
+paths:
+  /api/upload/funding-call:
+    post:
+      tags: [Upload]
+      summary: Upload funding call PDF
+      description: |
+        Upload a funding opportunity PDF. System extracts requirements (sections,
+        word limits, scoring criteria) and returns a structured blueprint.
+        Max file size: 10MB. (FR-001)
+      operationId: uploadFundingCall
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: PDF file of funding call
+                session_id:
+                  type: string
+                  format: uuid
+                  description: Optional session ID (created if not provided)
+              required: [file]
+      responses:
+        '200':
+          description: Upload successful, requirements extracted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FundingCallResponse'
+        '400':
+          description: Invalid file (not PDF, >10MB, or parsing failed)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error during extraction
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/upload/supporting-docs:
+    post:
+      tags: [Upload]
+      summary: Upload supporting documents (local context)
+      description: |
+        Upload up to 5 supporting documents (PDF, DOCX, TXT) containing local
+        community context. System chunks and indexes into vector store. Total
+        size limit: 50MB across all docs. (FR-002, FR-004)
+      operationId: uploadSupportingDocs
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                  maxItems: 5
+                  description: Up to 5 PDF/DOCX/TXT files
+                session_id:
+                  type: string
+                  format: uuid
+              required: [files, session_id]
+      responses:
+        '200':
+          description: Upload and indexing successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportingDocsResponse'
+        '400':
+          description: Invalid files (>5 docs, >50MB total, unsupported format)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/requirements/{session_id}:
+    get:
+      tags: [Requirements]
+      summary: Get extracted requirements checklist
+      description: |
+        Retrieve the structured requirements blueprint extracted from the
+        funding call. Includes sections, word limits, eligibility, scoring.
+        (FR-001)
+      operationId: getRequirements
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Requirements blueprint
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequirementsBlueprint'
+        '404':
+          description: Session or funding call not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/sections/generate:
+    post:
+      tags: [Sections]
+      summary: Generate a section draft
+      description: |
+        Generate draft text for a specific section using RAG retrieval from
+        uploaded documents. Includes inline citations and enforces word limits.
+        (FR-005, FR-006, FR-007)
+      operationId: generateSection
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateSectionRequest'
+      responses:
+        '200':
+          description: Section generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GeneratedSectionResponse'
+        '400':
+          description: Invalid request (missing section_id, no supporting docs)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/sections/{section_id}:
+    get:
+      tags: [Sections]
+      summary: Get section details
+      description: Retrieve generated section with current text, citations, and metadata
+      operationId: getSection
+      parameters:
+        - name: section_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Section details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GeneratedSectionResponse'
+        '404':
+          description: Section not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    
+    patch:
+      tags: [Sections]
+      summary: Update section (user edits)
+      description: |
+        Apply user edits to a section. Edits are stored separately to enable
+        sticky edit preservation during regeneration. (FR-009)
+      operationId: updateSection
+      parameters:
+        - name: section_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSectionRequest'
+      responses:
+        '200':
+          description: Section updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GeneratedSectionResponse'
+
+  /api/sections/{section_id}/regenerate:
+    post:
+      tags: [Sections]
+      summary: Regenerate section (keep edits)
+      description: |
+        Regenerate section with new AI output while preserving user edits.
+        Applies sticky edit logic per Constitution IV. (FR-009)
+      operationId: regenerateSection
+      parameters:
+        - name: section_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                feedback:
+                  type: string
+                  description: Optional user feedback to guide regeneration
+      responses:
+        '200':
+          description: Section regenerated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GeneratedSectionResponse'
+
+  /api/sections/{section_id}/lock:
+    post:
+      tags: [Sections]
+      summary: Lock section (prevent regeneration)
+      description: Mark section as locked to exclude from future regenerations (FR-010)
+      operationId: lockSection
+      parameters:
+        - name: section_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Section locked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  section_id:
+                    type: string
+                    format: uuid
+                  is_locked:
+                    type: boolean
+                    example: true
+
+  /api/export/docx:
+    post:
+      tags: [Export]
+      summary: Export proposal as DOCX
+      description: |
+        Merge all completed sections in checklist order and export as formatted
+        DOCX file with footnote citations. (FR-011)
+      operationId: exportDocx
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExportRequest'
+      responses:
+        '200':
+          description: DOCX file generated
+          content:
+            application/vnd.openxmlformats-officedocument.wordprocessingml.document:
+              schema:
+                type: string
+                format: binary
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+                example: 'attachment; filename="Proposal_2025-10-26.docx"'
+        '400':
+          description: No sections to export
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/data/{session_id}:
+    delete:
+      tags: [Data]
+      summary: Delete all session data
+      description: |
+        One-click data deletion. Removes all uploaded files, generated sections,
+        and vector indices for the session. (FR-012, Constitution VII)
+      operationId: deleteSessionData
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: All data deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteResponse'
+        '404':
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    FundingCallResponse:
+      type: object
+      properties:
+        session_id:
+          type: string
+          format: uuid
+        funding_call_id:
+          type: string
+          format: uuid
+        filename:
+          type: string
+          example: "Community_Grant_RFP_2025.pdf"
+        total_pages:
+          type: integer
+          example: 12
+        blueprint:
+          $ref: '#/components/schemas/RequirementsBlueprint'
+        extraction_status:
+          type: string
+          enum: [pending, processing, completed, failed]
+          example: completed
+      required: [session_id, funding_call_id, filename, blueprint, extraction_status]
+
+    RequirementsBlueprint:
+      type: object
+      properties:
+        sections:
+          type: array
+          items:
+            $ref: '#/components/schemas/SectionRequirement'
+        eligibility_criteria:
+          type: array
+          items:
+            type: string
+          example: ["Serve population <5000", "Non-profit organization"]
+        deadline:
+          type: string
+          format: date
+          example: "2025-12-31"
+        funding_amount:
+          type: string
+          example: "$50,000 - $100,000"
+        scoring_criteria:
+          type: object
+          additionalProperties:
+            type: integer
+          example:
+            need: 20
+            approach: 30
+            capacity: 25
+            budget: 25
+
+    SectionRequirement:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: "Community Need Statement"
+        order:
+          type: integer
+          example: 1
+        word_limit:
+          type: integer
+          nullable: true
+          example: 500
+        char_limit:
+          type: integer
+          nullable: true
+        format_requirements:
+          type: string
+          nullable: true
+          example: "Narrative paragraph"
+        scoring_weight:
+          type: integer
+          nullable: true
+          example: 20
+        generation_status:
+          type: string
+          enum: [not_started, generating, completed, failed]
+          example: not_started
+
+    SupportingDocsResponse:
+      type: object
+      properties:
+        session_id:
+          type: string
+          format: uuid
+        documents:
+          type: array
+          items:
+            $ref: '#/components/schemas/SupportingDocument'
+        total_upload_size_mb:
+          type: number
+          format: float
+          example: 24.5
+        total_chunks_indexed:
+          type: integer
+          example: 287
+
+    SupportingDocument:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        filename:
+          type: string
+          example: "Strategic_Plan_2024.pdf"
+        file_type:
+          type: string
+          enum: [pdf, docx, txt]
+        file_size_mb:
+          type: number
+          format: float
+        total_pages:
+          type: integer
+          nullable: true
+        chunk_count:
+          type: integer
+        indexed_at:
+          type: string
+          format: date-time
+
+    GenerateSectionRequest:
+      type: object
+      properties:
+        session_id:
+          type: string
+          format: uuid
+        section_id:
+          type: string
+          format: uuid
+          description: ID of SectionRequirement to generate
+        regenerate:
+          type: boolean
+          default: false
+          description: If true, regenerate existing section
+        feedback:
+          type: string
+          nullable: true
+          description: User feedback to guide generation
+      required: [session_id, section_id]
+
+    GeneratedSectionResponse:
+      type: object
+      properties:
+        section_id:
+          type: string
+          format: uuid
+        section_name:
+          type: string
+          example: "Community Need Statement"
+        final_text:
+          type: string
+          description: Merged AI text + user edits
+        word_count:
+          type: integer
+          example: 487
+        word_limit:
+          type: integer
+          nullable: true
+          example: 500
+        limit_exceeded:
+          type: boolean
+          example: false
+        citations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Citation'
+        is_locked:
+          type: boolean
+          example: false
+        generated_at:
+          type: string
+          format: date-time
+        regeneration_count:
+          type: integer
+          example: 0
+
+    Citation:
+      type: object
+      properties:
+        citation_id:
+          type: string
+        position_in_text:
+          type: integer
+          description: Character offset in final_text
+        document_id:
+          type: string
+          format: uuid
+        document_title:
+          type: string
+          example: "Strategic Plan 2024"
+        page_number:
+          type: integer
+          example: 5
+        chunk_text:
+          type: string
+          description: Excerpt from source chunk
+          example: "...our community lacks reliable internet..."
+        relevance_score:
+          type: number
+          format: float
+          example: 0.87
+
+    UpdateSectionRequest:
+      type: object
+      properties:
+        edited_text:
+          type: string
+          description: New text with user edits applied
+      required: [edited_text]
+
+    ExportRequest:
+      type: object
+      properties:
+        session_id:
+          type: string
+          format: uuid
+        include_incomplete:
+          type: boolean
+          default: false
+          description: Include sections not yet completed
+        citation_format:
+          type: string
+          enum: [inline, footnotes]
+          default: footnotes
+      required: [session_id]
+
+    DeleteResponse:
+      type: object
+      properties:
+        session_id:
+          type: string
+          format: uuid
+        deleted_files_count:
+          type: integer
+          example: 6
+        deleted_size_mb:
+          type: number
+          format: float
+          example: 28.3
+        deleted_sections_count:
+          type: integer
+          example: 3
+        vector_index_cleared:
+          type: boolean
+          example: true
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "File size exceeds 10MB limit"
+        code:
+          type: string
+          example: "FILE_TOO_LARGE"
+        details:
+          type: object
+          nullable: true
